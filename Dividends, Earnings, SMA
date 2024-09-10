@@ -1,0 +1,132 @@
+//@version=5
+indicator("Dividends, Earnings, SMA", precision=5, overlay=true)
+var bool DIV = input(true)
+var bool EAR = input(true)
+var int currentTime = timenow
+
+
+// Define the symbol template
+esdSymbolTemplate = "ESD_FACTSET:" + syminfo.prefix + ";" + syminfo.ticker
+
+// ================================ Dividends ==================================
+
+// Fetch the ex-dividend dates and dividend values
+dividendsUnixTimestamp = request.security(esdSymbolTemplate + ";DIVIDENDS", "D", time, lookahead=barmerge.lookahead_on)
+nextdividendsUnixTimestamp = dividends.future_ex_date
+
+// Extract year, month, day from dividendsUnixTimestamp
+dividendsYear = year(dividendsUnixTimestamp)
+dividendsMonth = month(dividendsUnixTimestamp)
+dividendsDay = dayofmonth(dividendsUnixTimestamp)
+
+// Check if today is the ex-dividend day
+isDividendDay = (year == dividendsYear and month == dividendsMonth and dayofmonth == dividendsDay)
+
+// Fetch historical close prices for n days before the current bar
+var days_ex_date = input( 5, "Days before ex-date")
+priceDaysAgo = request.security(syminfo.tickerid, "D", close[days_ex_date])
+
+// Initialize variables for drawing lines
+var float priceOnDividend = na
+var color hexcolor_ex_date = na
+
+// Draw vertical lines on dividend dates
+if (DIV)    
+    if (isDividendDay)
+        // Store the close price on the ex-dividend date
+        priceOnDividend := close
+        // Draw vertical line on the ex-dividend date
+        line.new(x1=bar_index, y1=priceOnDividend + priceOnDividend * 0.12, x2=bar_index, y2=priceOnDividend * 0.88, extend = extend.right, color=color.blue, width=3)
+
+        // Calculate the difference and percentage change
+        priceDifference_ex_date = priceOnDividend - priceDaysAgo
+        percentChange_ex_date = (priceDifference_ex_date / priceDaysAgo) * 100
+        if (percentChange_ex_date <= 0)
+            hexcolor_ex_date := color.rgb(255, 23, 15)
+        else
+            hexcolor_ex_date :=color.rgb(83, 158, 93)
+            
+        // Check if the last Earning date was n months ago
+        if (currentTime - dividendsUnixTimestamp <= 2629743000*5)
+            line.new(x1= nextdividendsUnixTimestamp - 43200000,  y1=priceOnDividend + priceOnDividend * 0.12, x2=nextdividendsUnixTimestamp - 43200000, xloc=xloc.bar_time, y2=priceOnDividend * 0.88, extend = extend.right, color=#000000, width=2)
+            line.new(x1= nextdividendsUnixTimestamp - 86400000 * days_ex_date,  y1=priceOnDividend + priceOnDividend * 0.12, x2=nextdividendsUnixTimestamp - 86400000 * days_ex_date, xloc=xloc.bar_time, y2=priceOnDividend * 0.88, extend = extend.right, color=#a14189, width=2)
+
+
+        // Draw line n bars before the ex-dividend date
+        if (bar_index - days_ex_date >= 0)
+            line.new(x1=bar_index - days_ex_date, y1=priceDaysAgo + priceDaysAgo * 0.12, x2=bar_index - days_ex_date, y2=priceDaysAgo * 0.88, extend =  extend.right, color=hexcolor_ex_date, width=3)
+            diffLabel = "Diff: " + str.tostring(priceDifference_ex_date, format.mintick) + "\nChange: " + str.tostring(percentChange_ex_date, "#.##") + "%"
+
+            // Display labels with the date, range, and difference information
+            label.new(x=bar_index, y=high + high* 0.12 , text="Date: " + str.tostring(year) + "-" + str.tostring(month) + "-" + str.tostring(dayofmonth) + "\n" + diffLabel + "\n" , color=color.rgb(255, 255, 255, 84), textcolor= hexcolor_ex_date, style=label.style_label_down)
+
+
+// ================================ Earnings ==================================
+
+// Fetch the earnings dates and dividend values
+earningsUnixTimestamp = request.security(esdSymbolTemplate + ";EARNINGS", "D", time, lookahead=barmerge.lookahead_on)
+nextearningsUnixTimestamp = earnings.future_time
+
+
+// Extract year, month, day from earningsUnixTimestamp
+earningsYear = year(earningsUnixTimestamp)
+earningsMonth = month(earningsUnixTimestamp)
+earningsDay = dayofmonth(earningsUnixTimestamp)
+
+// Check if today is the earnings day
+isEarningDay = (year == earningsYear and month == earningsMonth and dayofmonth == earningsDay)
+
+// Fetch historical close prices for n days before the current bar
+var days_earnings = input(5, "Days before earnings")
+priceDaysAgo_earnings = request.security(syminfo.tickerid, "D", close[days_earnings])
+
+// Initialize variables for drawing lines
+var float priceEarnings = na
+var color hexcolor_earnings = na
+
+// Draw vertical lines on earnings dates
+if (EAR)
+    if (isEarningDay)
+        // Store the close price on the earnings date
+        priceEarnings := close
+        
+        // Draw vertical line on the earnings date
+        line.new(x1=bar_index, y1=priceEarnings + priceEarnings * 0.12, x2=bar_index, y2=priceEarnings * 0.88, extend =  extend.right, color=#cc22a2, width=3)
+
+        // Calculate the difference and percentage change
+        priceDifference_earnings = priceEarnings - priceDaysAgo_earnings
+        percentChange_earnings = (priceDifference_earnings / priceDaysAgo_earnings) * 100
+        if (percentChange_earnings <= 0)
+            hexcolor_earnings := color.rgb(255, 103, 103)
+        else
+            hexcolor_earnings :=color.rgb(106, 207, 125)
+
+        // Check if the last Earning date was n months ago
+        if (currentTime - earningsUnixTimestamp <= 2629743000 * 5)
+            line.new(x1= nextearningsUnixTimestamp - 43200000,  y1=priceEarnings + priceEarnings * 0.12, x2=nextearningsUnixTimestamp - 43200000, xloc=xloc.bar_time, y2=priceEarnings * 0.88, extend = extend.right, color=#494949, width=2)
+            line.new(x1= nextearningsUnixTimestamp - 86400000 * days_earnings,  y1=priceEarnings + priceEarnings * 0.12, x2=nextearningsUnixTimestamp - 86400000 * days_earnings, xloc=xloc.bar_time, y2=priceEarnings * 0.88, extend = extend.right, color=#9e3896, width=2)
+
+        // Draw line n bars before the ex-dividend date
+        if (bar_index - days_earnings >= 0)
+            line.new(x1=bar_index - days_earnings, y1=priceDaysAgo_earnings + priceDaysAgo_earnings * 0.12, x2=bar_index - days_earnings, y2=priceDaysAgo_earnings * 0.88, extend =  extend.right, color=hexcolor_earnings, width=3)
+
+            // Format labels with the date, price range, difference, and percentage change
+            diffLabel = "Diff: " + str.tostring(priceDifference_earnings, format.mintick) + "\nChange: " + str.tostring(percentChange_earnings, "#.##") + "%"
+
+            // Display labels with the date, range, and difference information
+            label.new(x=bar_index, y=high + high* 0.12, text="Date: " + str.tostring(year) + "-" + str.tostring(month) + "-" + str.tostring(dayofmonth) + "\n" + diffLabel, color=color.rgb(255, 255, 255, 84), textcolor= hexcolor_earnings, style=label.style_label_down)
+
+
+// ================================ SMA ==================================
+
+averageData = input.source(close, title="Average Data Source")
+
+fastLength = input.int(10, title="Fast Average Length")
+slowLength = input.int(50, title="Slow Average Length")
+
+// Calculate averages
+fastAverage = ta.sma(averageData, fastLength)
+slowAverage = ta.sma(averageData, slowLength)
+
+plot(fastAverage, color=#6c5cb3d2, linewidth = input.int( 2, "FastAverage linewidth"))
+plot(slowAverage, color=#df40fb88, linewidth = input.int( 2, "SlowAverage linewidth"))
